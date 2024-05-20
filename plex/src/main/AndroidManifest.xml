@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-
+    <!-- 允许应用访问网络 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 允许应用访问网络状态，可用于检查网络连接 -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 </manifest>
