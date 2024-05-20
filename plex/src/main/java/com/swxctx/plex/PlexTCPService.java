@@ -2,7 +2,13 @@ package com.swxctx.plex;
 
 import android.app.Service;
 import android.content.Intent;
+import android.os.Binder;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
+import android.text.TextUtils;
+
+import com.google.gson.Gson;
 
 import java.io.IOException;
 
@@ -11,76 +17,149 @@ import java.io.IOException;
  * @Date 2024-05-20
  * @Describe:
  */
+
 public class PlexTCPService extends Service {
+    private final IBinder binder = new LocalBinder();
     private PlexSocketManager socketManager;
     private PlexMessageHandler messageHandler;
     private Thread listeningThread;
-    private boolean isRunning = false;
+    private boolean isConnected = false;
 
-    @Override
-    public IBinder onBind(Intent intent) {
-        return null;  // Return null for non-bound service
+    public class LocalBinder extends Binder {
+        PlexTCPService getService() {
+            return PlexTCPService.this;
+        }
     }
 
     @Override
-    public int onStartCommand(Intent intent, int flags, int startId) {
-        startService();
-        return START_STICKY;
+    public IBinder onBind(Intent intent) {
+        return binder;
+    }
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        initializeComponents();
+    }
+
+    private void initializeComponents() {
+        if (socketManager == null) {
+            socketManager = new PlexSocketManager();
+            messageHandler = new PlexMessageHandler(this);
+        }
     }
 
     @Override
     public void onDestroy() {
+        disconnect();
         super.onDestroy();
-        stopService();
     }
 
-    private void startService() {
-        if (!isRunning) {
-            isRunning = true;
-            socketManager = new PlexSocketManager();
-            messageHandler = new PlexMessageHandler();
+    public void connect() {
+        PlexLog.d("Attempting to connect to server...");
+        socketManager.connect(new PlexConnectionCallback() {
+            @Override
+            public void onConnectionSuccess() {
+                isConnected = true;
+                startMessageListening();
+                sendAuthentication();
+                PlexLog.d("Connected to server successfully.");
+            }
 
-            // Assume server IP and port are configured or retrieved from intent or shared preferences
-            String serverIp = "117.50.198.225";
-            int serverPort = 9578;
-
-            try {
-                socketManager.connect(serverIp, serverPort);
-            } catch (IOException e) {
+            @Override
+            public void onConnectionFailed(Exception e) {
                 PlexLog.e("Failed to connect to server: " + e.getMessage());
-                return;
+                isConnected = false;
             }
+        });
+    }
 
-            listeningThread = new Thread(this::listenForMessages);
-            listeningThread.start();
+    private void startMessageListening() {
+        listeningThread = new Thread(this::listenForMessages);
+        listeningThread.start();
+    }
+
+    private void sendAuthentication() {
+        try {
+            String authData = PlexConfig.getInstance().getAuthData();
+            PlexMessage message = new PlexMessage("/auth/server", authData);
+            String msg = new Gson().toJson(message);
+            sendMessage(msg);
+        } catch (IOException e) {
+            e.printStackTrace();
+            PlexLog.e("Failed to send authentication message: " + e.getMessage());
         }
     }
 
-    private void stopService() {
-        if (isRunning) {
-            isRunning = false;
-            if (listeningThread != null) {
-                try {
-                    listeningThread.interrupt();
-                    socketManager.disconnect();
-                } catch (Exception e) {
-                    PlexLog.e("Error stopping service: " + e.getMessage());
-                }
-            }
+    public void disconnect() {
+        if (!isConnected) {
+            return;
         }
+        isConnected = false;
+        if (socketManager != null) {
+            socketManager.disconnect();
+        }
+        if (listeningThread != null) {
+            listeningThread.interrupt();
+        }
+        stopHeartbeat();
+        PlexLog.d("Disconnected from server.");
     }
 
     private void listenForMessages() {
-        while (isRunning) {
+        PlexLog.d("listenForMessages start");
+        while (isConnected) {
             try {
-                byte[] message = socketManager.receiveData();
-                messageHandler.handleMessage(message);
+                String receivedMsg = socketManager.receiveMessage();
+                if (TextUtils.isEmpty(receivedMsg)) {
+                    // PlexLog.e("No message received or connection closed");
+                    continue;
+                }
+                PlexLog.d("Received message: " + receivedMsg);
+                messageHandler.handleMessage(receivedMsg);
             } catch (IOException e) {
                 PlexLog.e("Error receiving messages: " + e.getMessage());
                 if (Thread.currentThread().isInterrupted()) {
-                    return;
+                    break;
                 }
             }
         }
+    }
+
+    public void sendMessage(String message) throws IOException {
+        if (socketManager != null && isConnected) {
+            socketManager.sendData(message);
+        }
+    }
+
+    private Handler handler = new Handler(Looper.getMainLooper());
+    private Runnable heartbeatRunnable = new Runnable() {
+        @Override
+        public void run() {
+            try {
+                if (isConnected) {
+                    PlexMessage message = new PlexMessage("/heartbeat");
+                    String msg = new Gson().toJson(message);
+                    sendMessage(msg);
+                    PlexLog.d("Heartbeat sent.");
+                }
+            } catch (IOException e) {
+                PlexLog.e("Failed to send heartbeat: " + e.getMessage());
+            }
+            // Schedule the next heartbeat if still connected
+            if (isConnected) {
+                handler.postDelayed(this, 60000); // Schedule to run after 60 seconds
+            }
+        }
+    };
+
+    public void startHeartbeat() {
+        handler.postDelayed(heartbeatRunnable, 60000); // Start the first heartbeat after 60 seconds
+        PlexLog.d("Heartbeat scheduling started.");
+    }
+
+    public void stopHeartbeat() {
+        handler.removeCallbacks(heartbeatRunnable);
+        PlexLog.d("Heartbeat scheduling stopped.");
     }
 }

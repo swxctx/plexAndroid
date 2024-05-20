@@ -8,7 +8,7 @@ import android.util.Log;
  * @Describe:
  */
 public class PlexLog {
-    private static String TAG = "PLEX";
+    private static String TAG = "PLEX-SDK";
 
     public static void d(String msg) {
         if (BuildConfig.DEBUG) {

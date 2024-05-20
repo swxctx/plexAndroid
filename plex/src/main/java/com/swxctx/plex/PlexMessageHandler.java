@@ -2,27 +2,28 @@ package com.swxctx.plex;
 
 import com.google.gson.Gson;
 
-import java.nio.charset.StandardCharsets;
-
 /**
  * @Author swxctx
  * @Date 2024-05-20
  * @Describe:
  */
 public class PlexMessageHandler {
-    private Gson gson = new Gson();  // 使用Gson进行JSON序列化和反序列化
+    private PlexTCPService tcpService;
+    private Gson gson = new Gson();
 
-    public void handleMessage(byte[] messageBytes) {
+    public PlexMessageHandler(PlexTCPService tcpService) {
+        this.tcpService = tcpService;
+    }
+
+    public void handleMessage(String packMessage) {
         try {
-            String jsonMessage = new String(messageBytes, StandardCharsets.UTF_8);
-            PlexMessage message = gson.fromJson(jsonMessage, PlexMessage.class);  // 将JSON字符串转换为Message对象
-
+            PlexMessage message = gson.fromJson(packMessage, PlexMessage.class);
             switch (message.getUri()) {
                 case "/auth/success":
-                    handleAuthSuccess(message);
+                    handleAuthSuccess();
                     break;
                 case "/heartbeat":
-                    handleHeartbeat(message);
+                    handleHeartbeat();
                     break;
                 default:
                     handleDefault(message);
@@ -33,18 +34,16 @@ public class PlexMessageHandler {
         }
     }
 
-    private void handleAuthSuccess(PlexMessage message) {
-        // 处理认证消息
+    private void handleAuthSuccess() {
         PlexLog.d("Authentication successful.");
+        tcpService.startHeartbeat();  // 调用tcpService的startHeartbeat方法以启动心跳
     }
 
-    private void handleHeartbeat(PlexMessage message) {
-        // 处理心跳检测消息
+    private void handleHeartbeat() {
         PlexLog.d("Heartbeat received.");
     }
 
     private void handleDefault(PlexMessage message) {
-        // 处理其他类型的消息
         PlexLog.d("Received message: " + message.getBody());
     }
 }

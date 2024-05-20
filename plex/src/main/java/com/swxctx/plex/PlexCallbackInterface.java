@@ -5,7 +5,7 @@ package com.swxctx.plex;
  * @Date 2024-05-20
  * @Describe:
  */
-public interface CallbackInterface {
+public interface PlexCallbackInterface {
     interface OnMessageReceivedListener {
         void onMessageReceived(PlexMessage message);
     }
