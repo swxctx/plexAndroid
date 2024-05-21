@@ -13,6 +13,8 @@ import com.swxctx.plex.PlexLog;
 import com.swxctx.plex.PlexManager;
 import com.swxctx.plex.PlexMessage;
 
+import java.util.Random;
+
 public class MainActivity extends AppCompatActivity {
     private TextView tvMessage;
     private Button bConnectStatus;
@@ -35,11 +37,19 @@ public class MainActivity extends AppCompatActivity {
         bindListen();
     }
 
+    private int getRandomInteger(int min, int max) {
+        Random random = new Random();
+        return random.nextInt((max - min) + 1) + min;
+    }
+
     private void initData() {
-        PlexConfig.getInstance().setServerIp("117.50.198.225");
-        PlexConfig.getInstance().setServerPort(9578);
-        PlexConfig.getInstance().setAuthData("1");
-        PlexConfig.getInstance().setHeartbeatInterval(10000);
+        // 可以直接设置服务器的IP及端口，也可以设置部署Plex Server的服务器地址(建议这样做，因为Plex会做负载均衡，不要写死)
+        /*PlexConfig.getInstance().setServerIp("117.50.198.225");
+        PlexConfig.getInstance().setServerPort(9578);*/
+        PlexConfig.getInstance().setServerAddress("https://plex.developer.icu/plex/v1/host");
+        // 随机一个数字，实际使用的时候根据服务器校验规则处理
+        PlexConfig.getInstance().setAuthData(String.valueOf(getRandomInteger(1, 10000)));
+        PlexConfig.getInstance().setHeartbeatInterval(3000);
 
         PlexManager.init(this);
         PlexManager.getInstance().setOnMessageReceivedListener(new PlexCallbackInterface.OnMessageReceivedListener() {
@@ -128,7 +138,8 @@ public class MainActivity extends AppCompatActivity {
         bReceive.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-
+                // 调用服务器接口，模拟服务器推送，本地客户端接收消息
+                HttpRequestTask.sendRequest();
             }
         });
 
