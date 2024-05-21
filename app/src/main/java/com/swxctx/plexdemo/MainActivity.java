@@ -48,9 +48,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void initData() {
-        // 可以直接设置服务器的IP及端口，也可以设置部署Plex Server的服务器地址(建议这样做，因为Plex会做负载均衡，不要写死)
-        /*PlexConfig.getInstance().setServerIp("117.50.198.225");
-        PlexConfig.getInstance().setServerPort(9578);*/
+        // 服务器地址
         PlexConfig.getInstance().setServerAddress("https://plex.developer.icu/plex/v1/host");
         // 随机一个数字，实际使用的时候根据服务器校验规则处理
         PlexConfig.getInstance().setAuthData(String.valueOf(getRandomInteger(1, 10000)));
