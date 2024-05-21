@@ -16,6 +16,7 @@ public class PlexManager {
     private Context context;
     private PlexTCPService tcpService;
     private boolean isBound = false;
+    private boolean isBackground = false;
 
     private PlexCallbackInterface.OnMessageReceivedListener messageReceivedListener;
     private PlexCallbackInterface.OnConnectionStatusChangedListener connectionStatusChangedListener;
@@ -139,5 +140,19 @@ public class PlexManager {
             return tcpService.isConnected();
         }
         return false;
+    }
+
+    public void onAppBackgrounded() {
+        if (instance == null || tcpService == null) {
+            return;
+        }
+        stop();
+    }
+
+    public void onAppForegrounded() {
+        if (instance == null) {
+            return;
+        }
+        start();
     }
 }
