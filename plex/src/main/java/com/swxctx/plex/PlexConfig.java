@@ -7,21 +7,27 @@ package com.swxctx.plex;
  */
 public class PlexConfig {
     private static PlexConfig instance;
+    // fetch ip plex server address
+    private String serverAddress;
+    // tcp ip
     private String serverIp;
+    // tcp port
     private int serverPort;
+    // plex server auth data
     private String authData;
-
+    // heartbeat interval(ms)
     private int heartbeatInterval;
-
+    // tcp connect timeout(ms)
     private int connectTimeout;
+    // reconnect interval(ms) for tcp disconnect
     private int reconnectInterval;
 
     private ReconnectStrategy reconnectStrategy;
 
     private PlexConfig() {
-        // 默认值
-        this.serverIp = "default_ip";
-        this.serverPort = 1234;
+        // default
+        this.serverIp = "";
+        this.serverPort = 0;
         this.authData = "default_auth";
         this.heartbeatInterval = 60000;
         this.connectTimeout = 5000;
@@ -38,6 +44,22 @@ public class PlexConfig {
             }
         }
         return instance;
+    }
+
+    public void clearServerData() {
+        if (this.serverAddress.length() == 0) {
+            return;
+        }
+        this.serverIp = "";
+        this.serverPort = 0;
+    }
+
+    public String getServerAddress() {
+        return serverAddress;
+    }
+
+    public void setServerAddress(String serverAddress) {
+        this.serverAddress = serverAddress;
     }
 
     public String getServerIp() {

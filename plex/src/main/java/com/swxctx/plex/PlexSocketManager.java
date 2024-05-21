@@ -22,8 +22,6 @@ public class PlexSocketManager {
     private InputStream inputStream;
     private DataOutputStream dataOutputStream;
     private DataInputStream dataInputStream;
-    private volatile boolean isConnected = false;
-
     private final ExecutorService executorService = Executors.newCachedThreadPool();
 
     public synchronized void connect(final PlexConnectionCallback callback) {
@@ -46,10 +44,8 @@ public class PlexSocketManager {
                 dataOutputStream = new DataOutputStream(outputStream);
                 dataInputStream = new DataInputStream(inputStream);
 
-                isConnected = true;
                 callback.onConnectionSuccess();
             } catch (IOException e) {
-                isConnected = false;
                 callback.onConnectionFailed(e);
             }
         });
@@ -57,7 +53,6 @@ public class PlexSocketManager {
 
     public synchronized void disconnect() {
         closeResources();
-        isConnected = false;
     }
 
     private void closeResources() {
@@ -78,9 +73,10 @@ public class PlexSocketManager {
         }
     }
 
-    public void sendData(String message) throws IOException {
-        if (!isConnected) {
-            throw new IOException("Not connected to a server");
+    public void sendData(String message) {
+        if (!isConnected()) {
+            PlexLog.w("sendData, Not connected to a server");
+            return;
         }
 
         executorService.execute(() -> {

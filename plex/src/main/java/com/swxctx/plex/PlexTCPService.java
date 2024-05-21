@@ -66,6 +66,7 @@ public class PlexTCPService extends Service {
 
     @Override
     public void onDestroy() {
+        PlexLog.w("tcp service onDestroy");
         disconnect();
         super.onDestroy();
     }
@@ -96,6 +97,27 @@ public class PlexTCPService extends Service {
         PlexLog.d("Attempting to connect to server...");
         // init check
         initializeComponents();
+
+        // Fetch server IP and port before connecting
+        new FetchServerTask(new FetchServerTask.FetchServerCallback() {
+            @Override
+            public void onFetchSuccess() {
+                PlexLog.d("FetchServerTask onFetchSuccess, ip-> " + PlexConfig.getInstance().getServerIp() + ", port-> " + PlexConfig.getInstance().getServerPort());
+                startConnection();
+            }
+
+            @Override
+            public void onFetchFailure(Exception e) {
+                PlexLog.e("Failed to fetch server info-> " + e.getMessage());
+                if (connectionStatusChangedListener != null) {
+                    connectionStatusChangedListener.onConnectionFailed(e);
+                }
+                scheduleReconnect();
+            }
+        }).execute();
+    }
+
+    private void startConnection() {
         socketManager.connect(new PlexConnectionCallback() {
             @Override
             public void onConnectionSuccess() {
@@ -126,16 +148,16 @@ public class PlexTCPService extends Service {
             return;
         }
         updateConnectionStatus(false);
-        if (socketManager != null) {
-            socketManager.disconnect();
-        }
         if (listeningThread != null) {
             listeningThread.interrupt();
+        }
+        shutdownSchedulers();
+        if (socketManager != null) {
+            socketManager.disconnect();
         }
         if (connectionStatusChangedListener != null) {
             connectionStatusChangedListener.onDisconnected();
         }
-        shutdownSchedulers();
     }
 
     public boolean isConnected() {
@@ -144,6 +166,12 @@ public class PlexTCPService extends Service {
 
     private void handleConnectionLoss() {
         updateConnectionStatus(false);
+        if (listeningThread != null) {
+            listeningThread.interrupt();
+        }
+        if (socketManager != null) {
+            socketManager.disconnect();
+        }
         if (connectionStatusChangedListener != null) {
             connectionStatusChangedListener.onDisconnected();
         }
@@ -151,7 +179,9 @@ public class PlexTCPService extends Service {
     }
 
     private void scheduleReconnect() {
-        reconnectScheduler.schedule(this::connect, PlexConfig.getInstance().getReconnectInterval(), TimeUnit.MILLISECONDS);
+        if (shouldReconnect()) {
+            reconnectScheduler.schedule(this::connect, PlexConfig.getInstance().getReconnectInterval(), TimeUnit.MILLISECONDS);
+        }
     }
 
     private void shutdownSchedulers() {
@@ -159,18 +189,27 @@ public class PlexTCPService extends Service {
         reconnectScheduler.shutdownNow();
     }
 
+    private boolean shouldReconnect() {
+        PlexConfig.ReconnectStrategy strategy = PlexConfig.getInstance().getReconnectStrategy();
+        switch (strategy) {
+            case ALWAYS:
+                return true;
+            case ON_FAILURE:
+                // Only try to reconnect if not connected
+                return !isConnected;
+            default:
+                return false;
+        }
+    }
+
     /**
      * message send and listening
      */
     private void sendAuthentication() {
-        try {
-            String authData = PlexConfig.getInstance().getAuthData();
-            PlexMessage message = new PlexMessage(PlexConstant.URI_FOR_AUTH, authData);
-            String msg = new Gson().toJson(message);
-            sendMessage(msg);
-        } catch (IOException e) {
-            PlexLog.e("Failed to send authentication message: " + e.getMessage());
-        }
+        String authData = PlexConfig.getInstance().getAuthData();
+        PlexMessage message = new PlexMessage(PlexConstant.URI_FOR_AUTH, authData);
+        String msg = new Gson().toJson(message);
+        sendMessage(msg);
     }
 
     private void startMessageListening() {
@@ -189,6 +228,7 @@ public class PlexTCPService extends Service {
                 PlexLog.d("Received message: " + receivedMsg);
                 messageHandler.handleMessage(receivedMsg);
             } catch (IOException e) {
+                e.printStackTrace();
                 PlexLog.e("Error receiving messages: " + e.getMessage());
                 if (Thread.currentThread().isInterrupted()) {
                     break;
@@ -198,7 +238,7 @@ public class PlexTCPService extends Service {
         }
     }
 
-    public void sendMessage(String message) throws IOException {
+    public void sendMessage(String message) {
         if (socketManager != null && isConnected) {
             socketManager.sendData(message);
         }
@@ -210,15 +250,12 @@ public class PlexTCPService extends Service {
     private final Runnable heartbeatRunnable = new Runnable() {
         @Override
         public void run() {
+            // not connected
             if (!isConnected || socketManager == null || !socketManager.isConnected()) {
                 return;
             }
-            try {
-                sendMessage(heartbeatMessageJson);
-                PlexLog.d("Heartbeat send.");
-            } catch (IOException e) {
-                PlexLog.e("Failed to send heartbeat: " + e.getMessage());
-            }
+            sendMessage(heartbeatMessageJson);
+            PlexLog.d("Heartbeat send.");
         }
     };
 

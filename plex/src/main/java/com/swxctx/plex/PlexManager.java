@@ -32,13 +32,13 @@ public class PlexManager {
 
     public static PlexManager getInstance() {
         if (instance == null) {
+            PlexLog.w("PlexManager instance is nil");
             throw new IllegalStateException("Manager is not initialized, call init first.");
         }
         return instance;
     }
 
     public void setOnMessageReceivedListener(PlexCallbackInterface.OnMessageReceivedListener listener) {
-        PlexLog.d("11133333");
         this.messageReceivedListener = listener;
     }
 
@@ -46,6 +46,7 @@ public class PlexManager {
         this.connectionStatusChangedListener = listener;
     }
 
+    // tcp service connection
     private ServiceConnection serviceConnection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName name, IBinder service) {
@@ -106,6 +107,9 @@ public class PlexManager {
         }
     };
 
+    /**
+     * outer public
+     */
     public void start() {
         PlexLog.d("Starting service...");
         Intent serviceIntent = new Intent(context, PlexTCPService.class);
@@ -114,9 +118,11 @@ public class PlexManager {
 
     public void stop() {
         if (isBound && tcpService != null) {
+            tcpService.disconnect();
             context.unbindService(serviceConnection);
             isBound = false;
             tcpService = null;
+            PlexConfig.getInstance().clearServerData();
             PlexLog.d("Disconnected from server");
         }
     }

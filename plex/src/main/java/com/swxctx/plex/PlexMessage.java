@@ -3,7 +3,7 @@ package com.swxctx.plex;
 import com.google.gson.annotations.SerializedName;
 
 /**
- * @Author huyang
+ * @Author swxctx
  * @Date 2024-05-20
  * @Describe:
  */
