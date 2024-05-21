@@ -37,6 +37,11 @@ public class MainActivity extends AppCompatActivity {
         bindListen();
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+    }
+
     private int getRandomInteger(int min, int max) {
         Random random = new Random();
         return random.nextInt((max - min) + 1) + min;
