@@ -10,6 +10,12 @@ public class PlexConfig {
     private String serverIp;
     private int serverPort;
     private String authData;
+
+    private int heartbeatInterval;
+
+    private int connectTimeout;
+    private int reconnectInterval;
+
     private ReconnectStrategy reconnectStrategy;
 
     private PlexConfig() {
@@ -17,6 +23,9 @@ public class PlexConfig {
         this.serverIp = "default_ip";
         this.serverPort = 1234;
         this.authData = "default_auth";
+        this.heartbeatInterval = 60000;
+        this.connectTimeout = 5000;
+        this.reconnectInterval = 5000;
         this.reconnectStrategy = ReconnectStrategy.ALWAYS;
     }
 
@@ -53,6 +62,30 @@ public class PlexConfig {
 
     public void setAuthData(String authData) {
         this.authData = authData;
+    }
+
+    public int getHeartbeatInterval() {
+        return heartbeatInterval;
+    }
+
+    public void setHeartbeatInterval(int heartbeatInterval) {
+        this.heartbeatInterval = heartbeatInterval;
+    }
+
+    public int getConnectTimeout() {
+        return connectTimeout;
+    }
+
+    public void setConnectTimeout(int connectTimeout) {
+        this.connectTimeout = connectTimeout;
+    }
+
+    public int getReconnectInterval() {
+        return reconnectInterval;
+    }
+
+    public void setReconnectInterval(int reconnectInterval) {
+        this.reconnectInterval = reconnectInterval;
     }
 
     public ReconnectStrategy getReconnectStrategy() {

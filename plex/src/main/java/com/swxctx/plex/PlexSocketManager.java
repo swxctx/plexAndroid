@@ -8,7 +8,8 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * @Author swxctx
@@ -23,11 +24,14 @@ public class PlexSocketManager {
     private DataInputStream dataInputStream;
     private volatile boolean isConnected = false;
 
+    private final ExecutorService executorService = Executors.newCachedThreadPool();
+
     public synchronized void connect(final PlexConnectionCallback callback) {
-        new Thread(() -> {
+        executorService.execute(() -> {
             try {
                 if (socket != null && socket.isConnected()) {
                     // Already connected
+                    callback.onConnectionSuccess();
                     return;
                 }
 
@@ -35,8 +39,7 @@ public class PlexSocketManager {
                 int serverPort = PlexConfig.getInstance().getServerPort();
 
                 socket = new Socket();
-                // 5000 milliseconds connection timeout
-                socket.connect(new InetSocketAddress(serverIp, serverPort), 5000);
+                socket.connect(new InetSocketAddress(serverIp, serverPort), PlexConfig.getInstance().getConnectTimeout());
 
                 outputStream = socket.getOutputStream();
                 inputStream = socket.getInputStream();
@@ -47,26 +50,31 @@ public class PlexSocketManager {
                 callback.onConnectionSuccess();
             } catch (IOException e) {
                 isConnected = false;
-                e.printStackTrace();
                 callback.onConnectionFailed(e);
             }
-        }).start();
+        });
     }
 
     public synchronized void disconnect() {
-        if (socket != null) {
-            try {
-                dataInputStream.close();
-                dataOutputStream.close();
-                inputStream.close();
-                outputStream.close();
-                socket.close();
-                socket = null;
-                isConnected = false;
-            } catch (IOException e) {
-                // Log or handle the exception as needed
-                PlexLog.e("Error closing network resources: " + e.getMessage());
-            }
+        closeResources();
+        isConnected = false;
+    }
+
+    private void closeResources() {
+        try {
+            if (dataInputStream != null) dataInputStream.close();
+            if (dataOutputStream != null) dataOutputStream.close();
+            if (inputStream != null) inputStream.close();
+            if (outputStream != null) outputStream.close();
+            if (socket != null) socket.close();
+        } catch (IOException e) {
+            PlexLog.e("Error closing network resources: " + e.getMessage());
+        } finally {
+            socket = null;
+            dataInputStream = null;
+            dataOutputStream = null;
+            inputStream = null;
+            outputStream = null;
         }
     }
 
@@ -75,19 +83,23 @@ public class PlexSocketManager {
             throw new IOException("Not connected to a server");
         }
 
-        // 将String消息转换为字节
-        byte[] messageBytes = message.getBytes(StandardCharsets.UTF_8);
+        executorService.execute(() -> {
+            try {
+                byte[] messageBytes = message.getBytes(StandardCharsets.UTF_8);
 
-        // 计算消息长度
-        int messageLength = messageBytes.length;
+                // msg length
+                int messageLength = messageBytes.length;
 
-        // 发送消息长度（4字节）
-        dataOutputStream.writeInt(messageLength);
+                // send head
+                dataOutputStream.writeInt(messageLength);
 
-        // 发送消息体
-        dataOutputStream.write(messageBytes);
-        // 确保数据被发送
-        dataOutputStream.flush();
+                // send msg body
+                dataOutputStream.write(messageBytes);
+                dataOutputStream.flush();
+            } catch (IOException e) {
+                PlexLog.e("Error sending data: " + e.getMessage());
+            }
+        });
     }
 
     public String receiveMessage() throws IOException {
@@ -101,6 +113,6 @@ public class PlexSocketManager {
     }
 
     public boolean isConnected() {
-        return isConnected;
+        return socket != null && socket.isConnected();
     }
 }

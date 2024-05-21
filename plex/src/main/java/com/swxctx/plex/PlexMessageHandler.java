@@ -11,22 +11,40 @@ public class PlexMessageHandler {
     private PlexTCPService tcpService;
     private Gson gson = new Gson();
 
+    private PlexCallbackInterface.OnMessageReceivedListener messageReceivedListener;
+    private PlexCallbackInterface.OnConnectionStatusChangedListener connectionStatusChangedListener;
+
     public PlexMessageHandler(PlexTCPService tcpService) {
         this.tcpService = tcpService;
+    }
+
+    public void setMessageReceivedListener(PlexCallbackInterface.OnMessageReceivedListener listener) {
+        this.messageReceivedListener = listener;
+    }
+
+    public void setConnectionStatusChangedListener(PlexCallbackInterface.OnConnectionStatusChangedListener listener) {
+        this.connectionStatusChangedListener = listener;
     }
 
     public void handleMessage(String packMessage) {
         try {
             PlexMessage message = gson.fromJson(packMessage, PlexMessage.class);
             switch (message.getUri()) {
-                case "/auth/success":
+                case PlexConstant.URI_FOR_AUTH_SUCCESS:
                     handleAuthSuccess();
                     break;
-                case "/heartbeat":
+                case PlexConstant.URI_FOR_HEARTBEAT:
                     handleHeartbeat();
                     break;
+                case PlexConstant.URI_FOR_AUTH_FAILED:
+                    if (connectionStatusChangedListener != null) {
+                        connectionStatusChangedListener.onConnectAuthFailed();
+                    }
+                    break;
                 default:
-                    handleDefault(message);
+                    if (messageReceivedListener != null) {
+                        messageReceivedListener.onMessageReceived(message);
+                    }
                     break;
             }
         } catch (Exception e) {
@@ -36,14 +54,13 @@ public class PlexMessageHandler {
 
     private void handleAuthSuccess() {
         PlexLog.d("Authentication successful.");
-        tcpService.startHeartbeat();  // 调用tcpService的startHeartbeat方法以启动心跳
+        tcpService.startHeartbeat();
+        if (connectionStatusChangedListener != null) {
+            connectionStatusChangedListener.onConnected();
+        }
     }
 
     private void handleHeartbeat() {
         PlexLog.d("Heartbeat received.");
-    }
-
-    private void handleDefault(PlexMessage message) {
-        PlexLog.d("Received message: " + message.getBody());
     }
 }
